@@ -59,6 +59,7 @@ if __name__ == '__main__':
     model.SolarP = pe.Param(model.T, initialize=solar_p)
     model.hydrogenCap = pe.Param(initialize = hydrogen.storageCap)
     model.hydrogen_houlry_cap = pe.Param(initialize = 10)
+    model.hydrogen_initial_store = pe.Param(initialize = 100)
     
 
     model.n_smr = pe.Var(within=pe.PositiveIntegers, bounds=[1, 10])
@@ -79,14 +80,15 @@ if __name__ == '__main__':
         return (model.n_smr * smr.capacity + model.n_wind * wind.capacity * model.WindP[
             t] + model.n_solar * solar.capacity * model.SolarP[t] + model.HydrogenP[t])  >= model.Demand[t]
     
-    def hydrogen_system(model, t):
+    def hydrogen_system(model, t):   
 
-        P_excess = model.n_smr * smr.capacity + model.n_wind * wind.capacity * model.WindP[t] + model.n_solar * solar.capacity * model.SolarP[t] + model.HydrogenP[t] - model.Demand[t]
-
-        model.hydrogen_charge = hydrogen.mdot(P_excess)
-        model.hydrogenStore = model.hydrogenStore + model.hydrogen_charge - model.hydrogen_discharge
-
-        return model.hydrogenStore <= model.hydrogenCap
+        if t == model.T.first():
+            return model.hydrogenStore[t] == model.hydrogen_initial_store
+        else: 
+            P_excess = model.n_smr * smr.capacity + model.n_wind * wind.capacity * model.WindP[t] + model.n_solar * solar.capacity * model.SolarP[t] - model.Demand[t]
+            model.hydrogen_charge = hydrogen.mdot(P_excess)
+            return model.hydrogenStore[t] == model.hydrogenStore[t-1] - model.hydrogen_discharge[t] + model.hydrogen_charge[t]
+        
     
     def hydrogen_discharge_limit(model,t):
 
