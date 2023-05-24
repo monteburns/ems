@@ -15,15 +15,22 @@ class Battery():
 
 class Hydrogen():
 
-    def __init__(self, capacity, eff):
-        self.storageCap = capacity
-        self.eff = eff
+    def __init__(self, storageCap, eff_SOEC, eff_fcell):
+        self.storageCap = storageCap
+        self.eff_SOEC = eff_SOEC
+        self.eff_fcell = eff_fcell
+        self.HHV = 141.80e3 # kJ/kg
 
     def mdot(self, Pe):
         """The model assumes energy conversion based on a solid 
     oxide electrolysis cell (SOEC). Using the higher heating value 
-    (HHV) of hydrogen, calculated hydrogen production rate is returned"""
-        HHV = 141.80e3 # kJ/kg
+    (HHV) of hydrogen, calculated hydrogen production rate is returned"""        
         
-        return (self.eff * Pe)/HHV
+        return (self.eff_SOEC * Pe)/self.HHV
+    
+    def gen(self, mdot):
+        """ hydrogen can be released from the storage and fed into the SOEC system """
+
+        return self.eff_fcell * mdot * self.HHV
+
     
