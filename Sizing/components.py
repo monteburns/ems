@@ -14,6 +14,8 @@ class Battery():
         self.capacity = capacity
 
 class Hydrogen():
+    """ Hydrogen system consists of SOEC based production plant,
+        a storage system and a SOFC based combustion plant"""
 
     def __init__(self, storageCap, eff_SOEC, eff_fcell):
         self.storageCap = storageCap
@@ -29,7 +31,8 @@ class Hydrogen():
         return (self.eff_SOEC * Pe)/self.HHV
     
     def gen(self, mdot):
-        """ hydrogen can be released from the storage and fed into the SOEC system """
+        """ hydrogen can be released from the storage and fed into the solid oxide
+        fuel cell (SOFC) system to produce electricty """
 
         return self.eff_fcell * mdot * self.HHV
 

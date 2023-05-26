@@ -1,42 +1,46 @@
 import pyomo.environ as pe
-import random
+import platform
 import matplotlib.pyplot as plt
 from components import Unit
 from components import Hydrogen
 from common import Data
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+def windows():
+    return platform.system() == "Windows"
+def linux():
+    return platform.system() == "Linux"
 
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    print_hi('Yücehan')
 
     smr = Unit()
     wind = Unit()
     solar = Unit()
-    hydrogen = Hydrogen()
+
+    storageCap = 1000 #kg
+    eff_SOEC = 0.83
+    eff_fcell = 0.60
+
+    hydrogen = Hydrogen(storageCap, eff_SOEC, eff_fcell)
 
     smr.capacity = 77000  # kW
     wind.capacity = 2000  # kW
     solar.capacity = 100  # kW
-    hydrogen.storageCap = 1000 #kg
+    
 
     smr.lcoe = 70.59e-3  # $/kW
     wind.lcoe = 36.93e-3  # $/kW
     solar.lcoe = 30.43e-3  # $/kW
 
-    hydrogen.eff_fcell = 0.60
-    hydrogen.eff_SOEC = 0.83
-
     gen = Data()
     demand = Data()
 
-    gen.filename = 'Hybrid_SMR_dataset.xlsx'
-    demand.filename = 'Hybrid_SMR_dataset.xlsx'
+    if (windows()):
+        gen.filename = 'C:/Users/utae01688/Documents/Codes/ems/Sizing/Hybrid_SMR_dataset.xlsx'
+        demand.filename = 'C:/Users/utae01688/Documents/Codes/ems/Sizing/Hybrid_SMR_dataset.xlsx'
+    if (linux()):
+        gen.filename = 'Hybrid_SMR_dataset.xlsx'
+        demand.filename = 'Hybrid_SMR_dataset.xlsx'
 
     wind_p = gen.hourly('WF')
     solar_p = gen.hourly('PV')
@@ -58,54 +62,67 @@ if __name__ == '__main__':
     model.WindP = pe.Param(model.T, initialize=wind_p)
     model.SolarP = pe.Param(model.T, initialize=solar_p)
     model.hydrogenCap = pe.Param(initialize = hydrogen.storageCap)
-    model.hydrogen_houlry_cap = pe.Param(initialize = 10)
-    model.hydrogen_initial_store = pe.Param(initialize = 100)
+    model.hydrogen_hourly_cap = pe.Param(initialize = 1)
+    model.hydrogen_initial_store = pe.Param(initialize = 10)
     
 
-    model.n_smr = pe.Var(within=pe.PositiveIntegers, bounds=[1, 10])
-    model.n_wind = pe.Var(within=pe.PositiveIntegers, bounds=[1, 50])
-    model.n_solar = pe.Var(within=pe.PositiveIntegers, bounds=[1, 100])
+    model.n_smr = pe.Var(within=pe.PositiveIntegers, initialize = 1, bounds=[1, 10])
+    model.n_wind = pe.Var(within=pe.PositiveIntegers,  initialize = 1, bounds=[1, 50])
+    model.n_solar = pe.Var(within=pe.PositiveIntegers, initialize = 1, bounds=[1, 100])
 
-    model.hydrogen_discharge = pe.Var(model.T, domain = pe.NonNegativeReals)
     model.hydrogen_charge = pe.Var(model.T, domain = pe.NonNegativeReals)
-    model.hydrogenStore = pe.Var(model.T, domain = pe.NonNegativeReals)
+    model.hydrogenStore = pe.Var(model.T, domain = pe.NonNegativeReals, initialize = model.hydrogen_initial_store, bounds=[1, hydrogen.storageCap])
 
-    model.HydrogenP = hydrogen.gen(model.hydrogen_discharge)
+    model.HydrogenP = pe.Var(model.T, domain = pe.NonNegativeReals)
+    model.P_excess = pe.Var(model.T, domain = pe.NonNegativeReals)
 
     model.OBJ = pe.Objective(sense=pe.minimize, expr=C[0] * model.n_smr + C[1] * model.n_wind + C[2] * model.n_solar)
 
-    # x[t] less than X_in for all t
+ 
     def provide_demand(model, t):
 
         return (model.n_smr * smr.capacity + model.n_wind * wind.capacity * model.WindP[
             t] + model.n_solar * solar.capacity * model.SolarP[t] + model.HydrogenP[t])  >= model.Demand[t]
     
-    def hydrogen_system(model, t):   
-
-        if t == model.T.first():
-            return model.hydrogenStore[t] == model.hydrogen_initial_store
-        else: 
-            P_excess = model.n_smr * smr.capacity + model.n_wind * wind.capacity * model.WindP[t] + model.n_solar * solar.capacity * model.SolarP[t] - model.Demand[t]
-            model.hydrogen_charge = hydrogen.mdot(P_excess)
-            return model.hydrogenStore[t] == model.hydrogenStore[t-1] - model.hydrogen_discharge[t] + model.hydrogen_charge[t]
+    def hydrogen_power(model, t):
         
+        return model.HydrogenP[t] <= hydrogen.gen(model.hydrogen_hourly_cap) #1 kg a 85000 kW uretiyor
+        
+    def hydrogen_storage(model, t):
+
+        return model.hydrogenStore[t] >= model.hydrogen_hourly_cap
+
+    def hydrogen_charge(model, t):
+
+        model.P_excess[t] = model.n_smr * smr.capacity + model.n_wind * wind.capacity * model.WindP[t] + model.n_solar * solar.capacity * model.SolarP[t] - model.Demand[t]
+        return model.hydrogen_charge[t] == hydrogen.mdot(model.P_excess[t])
     
-    def hydrogen_discharge_limit(model,t):
+    def hydrogen_balance(model, t):
 
-        return model.hydrogen_discharge <= model.hydrogen_houlry_cap
+        if t==0:
+            return model.hydrogenStore[t] == model.hydrogen_initial_store
+        else:
+            return model.hydrogenStore[t] == model.hydrogenStore[t-1] + model.hydrogen_charge[t] - hydrogen.mdot(model.HydrogenP[t])
+        
 
-
-    model.demandConstraint = pe.Constraint(model.T, rule= provide_demand)
-    model.hydrogenSysConstraint = pe.Constraint(model.T, rule = hydrogen_system)
-    model.hydrogenDiscConstraint = pe.Constraint(model.T, rule = hydrogen_discharge_limit)
+    model.demandC = pe.Constraint(model.T, rule= provide_demand)
+    model.hydrogenPowC = pe.Constraint(model.T, rule = hydrogen_power)
+    model.hydrogenStoreC = pe.Constraint(model.T, rule = hydrogen_storage)
+    model.hydrogenChaC = pe.Constraint(model.T, rule = hydrogen_charge)
+    model.hydrogenSysC = pe.Constraint(model.T, rule = hydrogen_balance)
+    
 
     # ------ solve and print out results
     # solver setup
-    solver = pe.SolverFactory('glpk')
-    # solver = pyomo.SolverFactory('gurobi')
-    # solver = pyomo.SolverFactory('cbc')
-    solver.solve(model)
+    if (windows()):
+        solvername='glpk'
+        solverpath_folder='C:\\glpk-4.65\\w64'
+        solverpath_exe='C:\\glpk-4.65\\w64\\glpsol' 
+        solver = pe.SolverFactory(solvername,executable=solverpath_exe)
+    if (linux()):
+        solver = pe.SolverFactory('glpk')
+    
+    results = solver.solve(model, tee = True)
 
     model.pprint()
-
-    print((6*77000*smr.lcoe + 95*2000*wind.lcoe + 35*100*solar.lcoe)/(6*77000 + 95*2000 + 35*100))
+    results.write()
