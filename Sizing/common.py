@@ -1,5 +1,11 @@
 import pandas as pd
 
+class Unit():
+
+    def __int__(self, capacity, eff, lcoe):
+        self.capacity = capacity
+        self.eff = eff
+        self.lcoe = lcoe
 class Data():
 
     def __int__(self, filename):
