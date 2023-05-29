@@ -2,49 +2,49 @@ import pyomo.environ as pe
 
 class Battery():
 
+    def __init__(self):
+        """ There are 100 batteries """
+
+        self.MIN_BATTERY_CAPACITY = 0
+        self.MAX_BATTERY_CAPACITY = 580e2
+        self.MAX_BATTERY_POWER = 150e2
+        self.MAX_RAW_POWER = 300e2
+        self.INITIAL_CAPACITY = 0  # Default initial capacity will assume to be 0
+        self.EFFICIENCY = 0.9
+        self.MLF = 0.991  # Marginal Loss Factor
+
     def constraints(self, model, period):
-        MIN_BATTERY_CAPACITY = 0
-        MAX_BATTERY_CAPACITY = 580
-        MAX_BATTERY_POWER = 150
-        MAX_RAW_POWER = 300
-        INITIAL_CAPACITY = 0  # Default initial capacity will assume to be 0
-        EFFICIENCY = 0.9
-        MLF = 0.991  # Marginal Loss Factor
+
         constraintlist = []
         # battery variables
-        model.Capacity = pe.Var(period, bounds=[MIN_BATTERY_CAPACITY, MAX_BATTERY_CAPACITY])
-        model.Charge_power = pe.Var(period, bounds=[0, MAX_RAW_POWER])
-        # model.Discharge_power = pe.Var(period, bounds=[0, MAX_RAW_POWER])
-
-        # model.P_excess = pe.Var(period, domain=pe.NonNegativeReals)
-
+        model.Capacity = pe.Var(period, bounds=[self.MIN_BATTERY_CAPACITY, self.MAX_BATTERY_CAPACITY])
+        model.Charge_power = pe.Var(period, bounds=[0, self.MAX_RAW_POWER])
+ 
         def charge(model, t):
             model.P_excess[t] = model.n_smr * model.solar_capacity + model.n_wind * model.wind_capacity * model.WindP[
                 t] + model.n_solar * model.solar_capacity * model.SolarP[t] - model.Demand[t]
             return model.Charge_power[t] <= model.P_excess[t]
         model.charge = pe.Constraint(model.T, rule=charge)
         constraintlist.append(model.charge)
+
         # Make sure the battery does not charge above the limit
         def over_charge(model, i):
-            return model.Charge_power[i] <= (MAX_BATTERY_CAPACITY - model.Capacity[i]) * 2 / EFFICIENCY
-
+            return model.Charge_power[i] <= (self.MAX_BATTERY_CAPACITY - model.Capacity[i]) * 2 / self.EFFICIENCY
         model.over_charge = pe.Constraint(model.T, rule=over_charge)
         constraintlist.append(model.over_charge)
 
         def over_discharge(model, i):
-            return model.Discharge_power[i] <= model.Capacity[i] * 2
-
+            return model.BatteryDischargeP[i] <= model.Capacity[i] * 2
         model.over_discharge = pe.Constraint(period, rule=over_discharge)
         constraintlist.append(model.over_discharge)
         def capacity_constraint(model, i):
             # Assigning battery's starting capacity at the beginning
             if i == period.first():
-                return model.Capacity[i] == INITIAL_CAPACITY
+                return model.Capacity[i] == self.INITIAL_CAPACITY
             # if not update the capacity normally
             return model.Capacity[i] == (model.Capacity[i - 1]
-                                           + (model.Charge_power[i - 1] / 2 * EFFICIENCY)
-                                           - (model.Discharge_power[i - 1] / 2))
-
+                                           + (model.Charge_power[i - 1] / 2 * self.EFFICIENCY)
+                                           - (model.BatteryDischargeP[i - 1] / 2))
         model.capacity_constraint = pe.Constraint(period, rule=capacity_constraint)
         constraintlist.append(model.capacity_constraint)
 
@@ -86,8 +86,6 @@ class Hydrogen():
         model.hydrogenStore = pe.Var(period, domain=pe.NonNegativeReals, initialize=model.hydrogen_initial_store,
                                      bounds=[1, self.storageCap])
 
-        # model.HydrogenP = pe.Var(period, domain=pe.NonNegativeReals)
-        # model.P_excess = pe.Var(period, domain=pe.NonNegativeReals)
         def hydrogen_power(model, t):
 
             return model.HydrogenP[t] <= self.gen(model.hydrogen_hourly_cap)  # 1 kg a 85000 kW uretiyor
@@ -98,6 +96,7 @@ class Hydrogen():
             return model.hydrogenStore[t] >= model.hydrogen_hourly_cap
         model.hydrogenStoreC = pe.Constraint(period, rule = hydrogen_storage)
         constraintlist.append(model.hydrogenStoreC)
+
         def hydrogen_charge(model, t):
 
             model.P_excess[t] = model.n_smr * model.solar_capacity + model.n_wind * model.wind_capacity * model.WindP[
@@ -105,6 +104,7 @@ class Hydrogen():
             return model.hydrogen_charge[t] <= self.mdot(model.P_excess[t])
         model.hydrogenChaC = pe.Constraint(period, rule = hydrogen_charge)
         constraintlist.append(model.hydrogenChaC)
+
         def hydrogen_balance(model, t):
 
             if t == 0:
