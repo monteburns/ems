@@ -40,10 +40,10 @@ def main(args):
     gen = Data()
     demand = Data()
 
-    if (windows()):
+    if windows():
         gen.filename = 'C:/Users/utae01688/Documents/Codes/ems/Sizing/Hybrid_SMR_dataset.xlsx'
         demand.filename = 'C:/Users/utae01688/Documents/Codes/ems/Sizing/Hybrid_SMR_dataset.xlsx'
-    if (linux()):
+    if linux():
         gen.filename = 'Hybrid_SMR_dataset.xlsx'
         demand.filename = 'Hybrid_SMR_dataset.xlsx'
 
@@ -87,9 +87,13 @@ def main(args):
     model.OBJ = pe.Objective(sense=pe.minimize, expr=C[0] * model.n_smr + C[1] * model.n_wind + C[2] * model.n_solar)
 
     def provide_demand(model, t):
-        
-        return (model.n_smr * smr.capacity + model.n_wind * wind.capacity * model.WindP[
-            t] + model.n_solar * solar.capacity * model.SolarP[t] + model.HydrogenP[t]+ model.BatteryDischargeP[t]) >= model.Demand[t]
+        power_gen = [model.n_smr * smr.capacity + model.n_wind * wind.capacity * model.WindP[
+            t] + model.n_solar * solar.capacity * model.SolarP[t]]
+        if args.hydrogen:
+            power_gen.append(model.HydrogenP[t])
+        if args.battery:
+            power_gen.append(model.BatteryDischargeP[t])
+        return sum(power_gen) >= model.Demand[t]
 
     if args.battery:
         batteryCs = [cons for cons in battery.constraints(model, model.T)]
@@ -101,12 +105,12 @@ def main(args):
 
     # ------ solve and print out results
     # solver setup
-    if (windows()):
+    if windows():
         solvername='glpk'
         solverpath_folder='C:\\glpk-4.65\\w64'
         solverpath_exe='C:\\glpk-4.65\\w64\\glpsol' 
         solver = pe.SolverFactory(solvername, executable=solverpath_exe)
-    if (linux()):
+    if linux():
         solver = pe.SolverFactory('glpk')
     
     results = solver.solve(model, tee = True)
@@ -123,6 +127,7 @@ def main(args):
     wind_gen = [pe.value(model.n_wind * wind.capacity * model.WindP[t]) for t in model.WindP]
     solar_gen = [pe.value(model.n_solar * solar.capacity * model.SolarP[t]) for t in model.SolarP]
     dict = {'Nuclear': nuclear_gen, 'Wind': wind_gen, 'Solar': solar_gen}
+
     if args.hydrogen:
         hydrogen_gen = [pe.value(model.HydrogenP[t]) for t in model.HydrogenP]
         dict['Hydrogen'] = hydrogen_gen
@@ -145,7 +150,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parameters')
     parser.add_argument("--hydrogen", action="store_true", help="Adds hydrogen system")
     parser.add_argument("--battery", action="store_true", help="Adds batteries")
-
         
     args = parser.parse_args()
 
