@@ -1,17 +1,11 @@
 import argparse
 import pyomo.environ as pe
-import platform
 import matplotlib.pyplot as plt
 import pandas as pd
 from components import Hydrogen, Battery
-from common import Data
-from common import Unit
+from common import Data, Unit
+import os, sys
 
-
-def windows():
-    return platform.system() == "Windows"
-def linux():
-    return platform.system() == "Linux"
 
 def main(args):
 
@@ -40,13 +34,9 @@ def main(args):
     gen = Data()
     demand = Data()
 
-    if windows():
-        gen.filename = 'C:/Users/utae01688/Documents/Codes/ems/Sizing/Hybrid_SMR_dataset.xlsx'
-        demand.filename = 'C:/Users/utae01688/Documents/Codes/ems/Sizing/Hybrid_SMR_dataset.xlsx'
-    if linux():
-        gen.filename = 'Hybrid_SMR_dataset.xlsx'
-        demand.filename = 'Hybrid_SMR_dataset.xlsx'
-
+    gen.filename = 'Hybrid_SMR_dataset.xlsx'
+    demand.filename = 'Hybrid_SMR_dataset.xlsx'
+    
     wind_p = gen.hourly('WF')
     solar_p = gen.hourly('PV')
     demand_e = demand.hourly('Demand_E')
@@ -105,13 +95,7 @@ def main(args):
 
     # ------ solve and print out results
     # solver setup
-    if windows():
-        solvername='glpk'
-        solverpath_folder='C:\\glpk-4.65\\w64'
-        solverpath_exe='C:\\glpk-4.65\\w64\\glpsol' 
-        solver = pe.SolverFactory(solvername, executable=solverpath_exe)
-    if linux():
-        solver = pe.SolverFactory('glpk')
+    solver = pe.SolverFactory('glpk')
     
     results = solver.solve(model, tee = True)
 
@@ -141,11 +125,15 @@ def main(args):
               [df[col] for col in df.columns],
               labels=list(dict.keys()),
               alpha=0.8)
+    
+    plt.plot(demand_e)
 
     plt.legend(loc=2, fontsize='large')
     plt.show()
 
 if __name__ == '__main__':
+
+    workingDirectory  = os.path.realpath(sys.argv[0])
 
     parser = argparse.ArgumentParser(description='Parameters')
     parser.add_argument("--hydrogen", action="store_true", help="Adds hydrogen system")
