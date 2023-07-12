@@ -121,14 +121,8 @@ def main(args):
 
     df = pd.DataFrame(dict)
 
-    plt.stackplot(df.index,
-              [df[col] for col in df.columns],
-              labels=list(dict.keys()),
-              alpha=0.8)
-    
-    plt.plot(demand_e)
-
-    plt.legend(loc=2, fontsize='large')
+    plt1 = df.plot(kind='bar', stacked=True, title='Daily Generation')
+    plt1.plot(demand_e)
     plt.show()
 
 if __name__ == '__main__':
