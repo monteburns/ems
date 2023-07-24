@@ -34,12 +34,21 @@ def main(args):
     gen = Data()
     demand = Data()
 
+    geb = Data()
+
     gen.filename = 'Hybrid_SMR_dataset.xlsx'
     demand.filename = 'Hybrid_SMR_dataset.xlsx'
+
+    
     
     wind_p = gen.hourly('WF')
     solar_p = gen.hourly('PV')
     demand_e = demand.hourly('Demand_E')
+
+    # Hourly demand profile taken from a day in GEBZE OSB
+    geb.filename = 'tuk1.xlsx'
+    dem_geb = geb.hourly('Demand')
+    normlist = geb.profile(dem_geb)
 
 
     C = [smr.lcoe * smr.capacity, wind.lcoe * wind.capacity, solar.lcoe * solar.capacity]
@@ -124,6 +133,7 @@ def main(args):
     plt1 = df.plot(kind='bar', stacked=True, title='Daily Generation')
     plt1.plot(demand_e)
     plt.show()
+
 
 if __name__ == '__main__':
 

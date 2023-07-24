@@ -22,6 +22,11 @@ class Data():
 
         return df[parameter].tolist()
 
+    def profile(self, demandlist):
+
+        normlist = [float(i)/max(demandlist) for i in demandlist]
+
+        return normlist
 
 
 
