@@ -24,7 +24,7 @@ class Data():
 
     def profile(self, demandlist):
 
-        normlist = [float(i)/max(demandlist) for i in demandlist]
+        normlist = [float(i)/sum(demandlist) for i in demandlist]
 
         return normlist
 

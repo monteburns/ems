@@ -50,6 +50,9 @@ def main(args):
     dem_geb = geb.hourly('Demand')
     normlist = geb.profile(dem_geb)
 
+    # example demand for 24.07.2023 
+    demand_e =  [hour * 5306586 for hour in normlist]
+
 
     C = [smr.lcoe * smr.capacity, wind.lcoe * wind.capacity, solar.lcoe * solar.capacity]
 
