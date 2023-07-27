@@ -13,7 +13,7 @@ def main(args):
     wind = Unit()
     solar = Unit()
 
-    storageCap = 1000 #kg
+    storageCap = 3e6 # 30 bar
     eff_SOEC = 0.83
     eff_fcell = 0.60
 
@@ -50,7 +50,7 @@ def main(args):
     dem_geb = geb.hourly('Demand')
     normlist = geb.profile(dem_geb)
 
-    # example demand for 24.07.2023 
+    # example for a daily demand in 24.07.2023 
     demand_e =  [hour * 5306586 for hour in normlist]
 
 
@@ -74,10 +74,11 @@ def main(args):
     model.wind_capacity = pe.Param(initialize=wind.capacity)
     model.solar_capacity = pe.Param(initialize=solar.capacity)
 
-    model.P_excess = pe.Var(model.T, domain=pe.NonNegativeReals)
+    model.P_excess = pe.Var(model.T, domain=pe.Reals)
 
     if args.hydrogen:
-        model.HydrogenP = pe.Var(model.T, domain=pe.NonNegativeReals)
+        model.P_electrolyzer = pe.Var(model.T, domain=pe.NonNegativeReals)
+        model.P_fcell = pe.Var(model.T, domain=pe.NonNegativeReals)
 
     if args.battery:
         model.BatteryDischargeP = pe.Var(model.T, bounds=[0, battery.MAX_RAW_POWER])
@@ -92,7 +93,7 @@ def main(args):
         power_gen = [model.n_smr * smr.capacity + model.n_wind * wind.capacity * model.WindP[
             t] + model.n_solar * solar.capacity * model.SolarP[t]]
         if args.hydrogen:
-            power_gen.append(model.HydrogenP[t])
+            power_gen.append(model.P_fcell[t])
         if args.battery:
             power_gen.append(model.BatteryDischargeP[t])
         return sum(power_gen) >= model.Demand[t]
@@ -125,7 +126,7 @@ def main(args):
     dict = {'Nuclear': nuclear_gen, 'Wind': wind_gen, 'Solar': solar_gen}
 
     if args.hydrogen:
-        hydrogen_gen = [pe.value(model.HydrogenP[t]) for t in model.HydrogenP]
+        hydrogen_gen = [pe.value(model.P_fcell[t]) for t in model.P_fcell]
         dict['Hydrogen'] = hydrogen_gen
     if args.battery:
         battery_gen = [pe.value(model.BatteryDischargeP[t]) for t in model.BatteryDischargeP]

@@ -6,7 +6,7 @@ class Battery():
         """ There are 100 batteries """
 
         self.MIN_BATTERY_CAPACITY = 0
-        self.MAX_BATTERY_CAPACITY = 580e2
+        self.MAX_BATTERY_CAPACITY = 580e2 
         self.MAX_BATTERY_POWER = 150e2
         self.MAX_RAW_POWER = 300e2
         self.INITIAL_CAPACITY = 0  # Default initial capacity will assume to be 0
@@ -37,6 +37,7 @@ class Battery():
             return model.BatteryDischargeP[i] <= model.Capacity[i] * 2
         model.over_discharge = pe.Constraint(period, rule=over_discharge)
         constraintlist.append(model.over_discharge)
+
         def capacity_constraint(model, i):
             # Assigning battery's starting capacity at the beginning
             if i == period.first():
@@ -57,61 +58,67 @@ class Hydrogen():
         a storage system and a SOFC based combustion plant"""
 
     def __init__(self, storageCap, eff_SOEC, eff_fcell):
-        self.storageCap = storageCap
+        self.MAX_STORAGE_CAPACITY = storageCap
+        self.MIN_STORAGE_CAPACITY = 0
+        self.ELECTROLYSER_POWER = 2500e2 # kW
+        self.FUEL_CELL_POWER = 100e2 # kW
+        self.INITIAL_CAPACITY = 1e6 # 10 bar
         self.eff_SOEC = eff_SOEC
         self.eff_fcell = eff_fcell
+        self.TANK_VOLUME = 4 # m3
+        self.R_H2 = 4.124 # kJ/kgK
+        self.TEMP = 300 # K
         self.HHV = 141.80e3 # kJ/kg
+        self.LHV = 120e3 # kJ/kg
 
     def mdot(self, Pe):
         """The model assumes energy conversion based on a solid 
     oxide electrolysis cell (SOEC). Using the higher heating value 
     (HHV) of hydrogen, calculated hydrogen production rate is returned"""        
         
-        return (self.eff_SOEC * Pe)/self.HHV
+        return (self.eff_SOEC * Pe)/self.LHV
     
     def gen(self, mdot):
         """ hydrogen can be released from the storage and fed into the solid oxide
         fuel cell (SOFC) system to produce electricty """
 
-        return self.eff_fcell * mdot * self.HHV
+        return self.eff_fcell * mdot * self.LHV
 
     def constraints(self, model, period):
         constraintlist = []
 
-        model.hydrogenCap = pe.Param(initialize=self.storageCap)
-        model.hydrogen_hourly_cap = pe.Param(initialize=1)
-        model.hydrogen_initial_store = pe.Param(initialize=10)
-
-        model.hydrogen_charge = pe.Var(period, domain=pe.NonNegativeReals)
-        model.hydrogenStore = pe.Var(period, domain=pe.NonNegativeReals, initialize=model.hydrogen_initial_store,
-                                     bounds=[1, self.storageCap])
-
-        def hydrogen_power(model, t):
-
-            return model.HydrogenP[t] <= self.gen(model.hydrogen_hourly_cap)  # 1 kg a 85000 kW uretiyor
-        model.hydrogenPowC = pe.Constraint(period, rule = hydrogen_power)
-        constraintlist.append(model.hydrogenPowC)
-        def hydrogen_storage(model, t):
-
-            return model.hydrogenStore[t] >= model.hydrogen_hourly_cap
-        model.hydrogenStoreC = pe.Constraint(period, rule = hydrogen_storage)
-        constraintlist.append(model.hydrogenStoreC)
-
+        model.SOP = pe.Var(period, domain=pe.NonNegativeReals, bounds=[self.MIN_STORAGE_CAPACITY, self.MAX_STORAGE_CAPACITY])
+        
         def hydrogen_charge(model, t):
 
             model.P_excess[t] = model.n_smr * model.solar_capacity + model.n_wind * model.wind_capacity * model.WindP[
                 t] + model.n_solar * model.solar_capacity * model.SolarP[t] - model.Demand[t]
-            return model.hydrogen_charge[t] <= self.mdot(model.P_excess[t])
+            return model.P_electrolyzer[t] <= self.mdot(model.P_excess[t])
         model.hydrogenChaC = pe.Constraint(period, rule = hydrogen_charge)
         constraintlist.append(model.hydrogenChaC)
+
+        def over_discharge(model, t):
+            return model.P_fcell[t] <= self.gen((model.SOP[t] * self.TANK_VOLUME) / (self.R_H2 * self.TEMP))
+        model.discharge = pe.Constraint(period, rule=over_discharge)
+        constraintlist.append(model.discharge)
+
+        def electrolyser_limit(model, t):
+            return model.P_electrolyzer[t] <= self.ELECTROLYSER_POWER
+        model.genC = pe.Constraint(period, rule = electrolyser_limit)
+        constraintlist.append(model.genC)
+
+        def fcell_limit(model, t):
+            return model.P_fcell[t] <= self.FUEL_CELL_POWER
+        model.fcellC = pe.Constraint(period, rule = fcell_limit)
+        constraintlist.append(model.fcellC)
 
         def hydrogen_balance(model, t):
 
             if t == 0:
-                return model.hydrogenStore[t] == model.hydrogen_initial_store
+                return model.SOP[t] == self.INITIAL_CAPACITY
             else:
-                return model.hydrogenStore[t] == model.hydrogenStore[t - 1] + model.hydrogen_charge[t] - self.mdot(
-                    model.HydrogenP[t])
+                return model.SOP[t] == model.SOP[t - 1] + (self.R_H2 * self.TEMP / self.TANK_VOLUME) * (self.eff_SOEC * model.P_electrolyzer[t] - model.P_fcell[t] / self.eff_fcell) / self.LHV
+            
         model.hydrogenSysC = pe.Constraint(period, rule = hydrogen_balance)
         constraintlist.append(model.hydrogenSysC)
 
