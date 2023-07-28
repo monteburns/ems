@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 
 def dataGen():
 
+    # do not use any token inside your code, add your key into your bash
+    # as an environment variable, then get your key with os.getenv(key, default = None))'''
     #token = 'a58588336bc2bea77b957ea90fccc444c7d19042'
     api_base = 'https://www.renewables.ninja/api/'
 
