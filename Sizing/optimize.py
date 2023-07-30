@@ -139,8 +139,10 @@ def main(args):
 
 
     # print LCOE 
+    totalgen = []
+    [totalgen.append(sum(gen)) for gen in dict.values()]
 
-    lcoe_sys = (smr.lcoe * sum(nuclear_gen) + wind.lcoe * sum(wind_gen) + solar.lcoe * sum(solar_gen)) / (sum(nuclear_gen) + sum(wind_gen) + sum(solar_gen) + sum(hydrogen_gen))
+    lcoe_sys = (smr.lcoe * sum(nuclear_gen) + wind.lcoe * sum(wind_gen) + solar.lcoe * sum(solar_gen)) / sum(totalgen)
 
     print("System LCOE: %5.2f $/kW" % (1e3* lcoe_sys))
 
