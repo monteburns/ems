@@ -23,6 +23,8 @@ class Data():
         return df[parameter].tolist()
 
     def profile(self, demandlist):
+        """Normizing according to sum since norm hour value will be 
+        multiplied by daily total consumption"""
 
         normlist = [float(i)/sum(demandlist) for i in demandlist]
 

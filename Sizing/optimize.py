@@ -25,9 +25,9 @@ def main(args):
 
     smr.capacity = 77000  # kW
     wind.capacity = 2000  # kW
-    solar.capacity = 100  # kW
+    solar.capacity = 1  # kW
 
-    smr.lcoe = 70.59e-3  # $/kW
+    smr.lcoe = 64.00e-3  # $/kW
     wind.lcoe = 36.93e-3  # $/kW
     solar.lcoe = 30.43e-3  # $/kW
 
@@ -85,7 +85,7 @@ def main(args):
 
     model.n_smr = pe.Var(within=pe.PositiveIntegers, initialize = 10, bounds=[1, 10])
     model.n_wind = pe.Var(within=pe.PositiveIntegers,  initialize = 10, bounds=[1, 500])
-    model.n_solar = pe.Var(within=pe.PositiveIntegers, initialize = 10, bounds=[1, 1000])
+    model.n_solar = pe.Var(within=pe.PositiveIntegers, initialize = 10, bounds=[1, 100000])
 
     model.OBJ = pe.Objective(sense=pe.minimize, expr=C[0] * model.n_smr + C[1] * model.n_wind + C[2] * model.n_solar)
 
@@ -114,15 +114,18 @@ def main(args):
 
     model.pprint()
     results.write()
+
     print("Number of SMRs: ", pe.value(model.n_smr))
     print("Number of Wind turbines: ", pe.value(model.n_wind))
     print("Number of Solar panels: ", pe.value(model.n_solar))
+
 
     # Post Processing
 
     nuclear_gen = [pe.value(model.n_smr * smr.capacity) for t in range(24)]
     wind_gen = [pe.value(model.n_wind * wind.capacity * model.WindP[t]) for t in model.WindP]
     solar_gen = [pe.value(model.n_solar * solar.capacity * model.SolarP[t]) for t in model.SolarP]
+
     dict = {'Nuclear': nuclear_gen, 'Wind': wind_gen, 'Solar': solar_gen}
 
     if args.hydrogen:
@@ -133,6 +136,16 @@ def main(args):
         dict['Battery'] = battery_gen
 
     df = pd.DataFrame(dict)
+
+
+    # print LCOE 
+
+    lcoe_sys = (smr.lcoe * sum(nuclear_gen) + wind.lcoe * sum(wind_gen) + solar.lcoe * sum(solar_gen)) / (sum(nuclear_gen) + sum(wind_gen) + sum(solar_gen) + sum(hydrogen_gen))
+
+    print("System LCOE: %5.2f $/kW" % (1e3* lcoe_sys))
+
+
+    # Show graphs
 
     plt1 = df.plot(kind='bar', stacked=True, title='Daily Generation')
     plt1.plot(demand_e)
