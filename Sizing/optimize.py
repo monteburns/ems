@@ -149,8 +149,11 @@ def main(args):
 
     # Show graphs
 
-    plt1 = df.plot(kind='bar', stacked=True, title='Daily Generation')
-    plt1.plot(demand_e)
+    df.plot(kind='bar', stacked=True, figsize=(10,4))
+    plt.plot(demand_e, label = 'Demand')
+    plt.legend(loc='lower left')
+    plt.xlabel('Hour')
+    plt.ylabel('kW')
     plt.show()
 
 
