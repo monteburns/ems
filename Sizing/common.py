@@ -13,14 +13,16 @@ class Data():
 
     @staticmethod
     def read(filename):
-        df = pd.read_excel(filename)
+        df = pd.read_csv(filename)
 
         return df
 
-    def hourly(self, parameter):
+    def daily(self, parameter):
         df = self.read(self.filename)
 
         return df[parameter].tolist()
+
+    hourly = daily
 
     def profile(self, demandlist):
         """Normizing according to sum since norm hour value will be 
