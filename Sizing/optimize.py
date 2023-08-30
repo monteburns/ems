@@ -31,13 +31,9 @@ def main(args):
     solar.lcoe = 30.43e-3  # $/kW
 
     gridPrice = 0.14 # $/kW
-
     batterylcoe = 0.1 # (0.15) $/kW
-
     fcprice = 0.2
-
-    h2price = 12  
-
+    h2price = 8  
 
     profile = Data()
     demand = Data()
@@ -81,10 +77,8 @@ def main(args):
     model.SolarP = pe.Param(model.T, initialize=solarP)
     model.smrP = pe.Param(initialize=smr.capacity)
 
-
     model.P_excess = pe.Var(model.T, domain=pe.Reals)
     # model.power_gen = pe.Var(model.T, domain=pe.NonNegativeReals)
-
 
     if args.hydrogen:
         model.P_electrolyzer = pe.Var(model.T, initialize=0, domain=pe.NonNegativeReals)
@@ -158,15 +152,13 @@ def main(args):
 
 
     # Post Processing
-
     nuclear_gen = [pe.value(model.n_smr * smr.capacity) for t in range(model.nt())]
     wind_gen = [pe.value(model.n_wind * model.WindP[t]) for t in model.WindP]
     solar_gen = [pe.value(model.n_solar * model.SolarP[t]) for t in model.SolarP]
 
     grid_gen = [pe.value(model.Pgrid[t]) for t in model.Pgrid ]
-
-    battery_gen = [pe.value(model.dischargeP[t]) for t in model.dischargeP ]
-
+    hydrogen_gen = [pe.value(model.P_fcell[t]) for t in model.P_fcell]
+    battery_gen = [pe.value(model.dischargeP[t]) for t in model.dischargeP]
     power_gen = [(nuclear_gen[t] + wind_gen[t] + solar_gen[t] + grid_gen[t] + battery_gen[t]) for t in range(model.nt())]
 
     dict = {'Nuclear': nuclear_gen, 'Wind': wind_gen, 'Solar': solar_gen,'Grid':grid_gen, 'TotalGEN': power_gen, 'Demand': demand_hourly}
@@ -192,8 +184,11 @@ def main(args):
 
     lcoe_sys = (smr.lcoe * sum(nuclear_gen) + wind.lcoe * sum(wind_gen) + solar.lcoe * sum(solar_gen) + gridPrice * sum(grid_gen) 
         + sum(battery_gen) - h2price * sum(m_electrolyzer)) / sum(power_gen)
+    lcoe_woH2 = (smr.lcoe * sum(nuclear_gen) + wind.lcoe * sum(wind_gen) + solar.lcoe * sum(solar_gen) + gridPrice * sum(grid_gen) 
+        + sum(battery_gen)) / sum(power_gen)
 
-    print("System LCOE: %5.2f $/kW" % (1e3* lcoe_sys))
+    print("System LCOE: %5.2f $/MW" % (1e3* lcoe_sys))
+    print("LCOE without Hydrogen: %5.2f $/MW" % (1e3* lcoe_woH2))
     print("Total Hydrogen generated: %5.2f kg" % (sum(m_electrolyzer)))
 
     # Show graphs
