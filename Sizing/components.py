@@ -9,7 +9,7 @@ class Battery():
         self.MAX_BATTERY_CAPACITY = 60e3 # kWh
         self.MAX_BATTERY_POWER = 20e3 # kW
         self.MIN_BATTERY_POWER = 0 #10e5
-        self.INITIAL_CAPACITY = 30e3 # Default full initial capacity
+        self.INITIAL_CAPACITY = 40e3 # Default full initial capacity
         self.EFFICIENCY = 0.9
 
     def constraints(self, model, period):
@@ -81,8 +81,8 @@ class Hydrogen():
         self.TANK_VOLUME = 4 # m3
         self.R_H2 = 4.124 # kJ/kgK
         self.TEMP = 300 # K
-        self.HHV = 141.80e3 # kJ/kg
-        self.LHV = 120e3 # kJ/kg
+        self.HHV = 141.80e3/3600 # kW/kg
+        self.LHV = 120e3/3600 # kW/kg
 
     def mdot(self, Pe):
         """The model assumes energy conversion based on a solid 

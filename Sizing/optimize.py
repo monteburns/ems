@@ -36,7 +36,7 @@ def main(args):
 
     fcprice = 0.2
 
-    h2price = 8  
+    h2price = 12  
 
 
     profile = Data()
@@ -96,11 +96,11 @@ def main(args):
         model.chargeP = pe.Var(model.T, initialize=0, domain=pe.NonNegativeReals)
         model.dischargeP = pe.Var(model.T, initialize=0, domain=pe.NonNegativeReals)
 
-    model.n_smr = pe.Var(within=pe.PositiveIntegers, initialize = 1, bounds=[1, 10])
-    model.n_wind = pe.Var(within=pe.PositiveIntegers,  initialize = 10, bounds=[1, 60])
+    model.n_smr = pe.Var(within=pe.PositiveIntegers, initialize = 1, bounds=[1, 5])
+    model.n_wind = pe.Var(within=pe.PositiveIntegers,  initialize = 10, bounds=[1, 100])
     model.n_solar = pe.Var(within=pe.PositiveIntegers, initialize = 1000, bounds=[100, 200000])
 
-    model.n_h2sys = pe.Param(initialize=10)
+    model.n_h2sys = pe.Param(initialize=100)
 
     gridpower = 40000
     model.Pgrid = pe.Var(model.T, initialize=0, bounds=[0,gridpower])
@@ -173,10 +173,12 @@ def main(args):
 
     if args.hydrogen:
         hydrogen_gen = [pe.value(model.P_fcell[t]) for t in model.P_fcell]
-        electrolyzer = [pe.value(model.M_electrolyzer[t]) for t in model.M_electrolyzer]
+        m_electrolyzer = [pe.value(model.M_electrolyzer[t]) for t in model.M_electrolyzer]
+        p_electrolyzer = [pe.value(model.M_electrolyzer[t]) for t in model.P_electrolyzer]
         tank = [pe.value(model.SOP[t]) for t in model.SOP]
         dict['Hydrogen'] = hydrogen_gen
-        dict['Electrolyzer'] = electrolyzer
+        dict['M_Electrolyzer'] = m_electrolyzer
+        dict['P_Electrolyzer'] = p_electrolyzer
         dict['SOP'] = tank
     if args.battery:
         batteryDischarge = [pe.value(model.dischargeP[t]) for t in model.dischargeP]
@@ -189,10 +191,10 @@ def main(args):
     df = pd.DataFrame(dict)
 
     lcoe_sys = (smr.lcoe * sum(nuclear_gen) + wind.lcoe * sum(wind_gen) + solar.lcoe * sum(solar_gen) + gridPrice * sum(grid_gen) 
-        + sum(battery_gen) - h2price * sum(electrolyzer)) / sum(power_gen)
+        + sum(battery_gen) - h2price * sum(m_electrolyzer)) / sum(power_gen)
 
     print("System LCOE: %5.2f $/kW" % (1e3* lcoe_sys))
-    print("Total Hydrogen generated: %5.2f kg" % (sum(electrolyzer)))
+    print("Total Hydrogen generated: %5.2f kg" % (sum(m_electrolyzer)))
 
     # Show graphs
     if args.horizon and args.battery:
@@ -218,14 +220,14 @@ def main(args):
             patches, texts, autotexts = ax.pie([sum(nuclear_gen), sum(wind_gen), sum(solar_gen), sum(grid_gen), sum(battery_gen)],  
                 labels=labels, autopct='%1.1f%%', labeldistance=1.2, explode=explode)
         elif args.hydrogen and args.battery:
-            subplots = df[['Nuclear','Wind','Solar','Grid', 'Battery Power','Battery Charge', 'SOC','TotalGEN','Demand']].plot(figsize=(12, 4), 
+            subplots = df[['Nuclear','Wind','Solar','Grid', 'Battery Power','Battery Charge', 'SOC','TotalGEN','P_Electrolyzer','Demand']].plot(figsize=(12, 4), 
                 subplots=True, grid=True)
             fig, ax = plt.subplots()
             labels = 'Nuclear','Wind', 'Solar', 'Grid', 'Battery'
             explode = [0, 0, 0, 0.1, 0.2]
             patches, texts, autotexts = ax.pie([sum(nuclear_gen), sum(wind_gen), sum(solar_gen), sum(grid_gen), sum(battery_gen)],  
                 labels=labels, autopct='%1.1f%%', labeldistance=1.2, explode=explode)
-            df[['Hydrogen', 'Electrolyzer','SOP']].plot(figsize=(12, 4), subplots=True)
+            df[['Hydrogen', 'M_Electrolyzer','SOP']].plot(figsize=(12, 4), subplots=True)
         elif args.hydrogen and not args.battery:
             pass
 
