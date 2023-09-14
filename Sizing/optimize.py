@@ -229,11 +229,16 @@ def main(args):
         else:
             df[['Nuclear','Wind','Solar','TotalGEN','Demand']].plot.area(figsize=(12, 4), subplots=True)
 
+    # Writing the results
+    df.to_csv('Results.csv')
+
+    # Show graphs
     # plt.legend(loc='upper left')
     plt.tight_layout()
     plt.xlabel('Hour')
     # plt.ylabel('kW')
     plt.show()
+
 
 
 if __name__ == '__main__':
